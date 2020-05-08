@@ -49,7 +49,7 @@ __global__ void get_values(int* keys, int numKeys, KeyValue* hashtable, unsigned
 		return;
 
 	key = keys[idx];
-	count = capacity;
+	count = capacity + 1;
 	hashedKey = hashFunc(key, capacity);
 
 	while (count) {
@@ -59,8 +59,6 @@ __global__ void get_values(int* keys, int numKeys, KeyValue* hashtable, unsigned
 			deviceResult[idx] = currentPair.value;
 			break;
 		}
-		else if (currentPair.key == KEY_INVALID)
-			break;
 
 		--count;
 		++hashedKey;
@@ -97,41 +95,51 @@ __global__ void copy_and_rehash(KeyValue *dst, KeyValue *src,
 /* INIT HASH
  */
 GpuHashTable::GpuHashTable(int size) {
+	cudaError_t err;
+
 	capacity = size;
 	occupancy = 0;
 
-	cudaMalloc((void**) &hashtable, size * sizeof(KeyValue));
-	DIE(hashtable == NULL, "cudaMalloc");
+	err = cudaMalloc((void**) &hashtable, size * sizeof(KeyValue));
+	DIE(err != cudaSuccess, "cudaMalloc");
 
-	cudaMemset((void *) hashtable, KEY_INVALID, size * sizeof(KeyValue));
+	err = cudaMemset((void *) hashtable, KEY_INVALID, size * sizeof(KeyValue));
+	DIE(err != cudaSuccess, "cudaMemset");
 }
 
 /* DESTROY HASH
  */
 GpuHashTable::~GpuHashTable() {
-	cudaFree(hashtable);
+	cudaError_t err;
+
+	err = cudaFree(hashtable);
+	DIE(err != cudaSuccess, "cudaFree");
 }
 
 /* RESHAPE HASH
  */
 void GpuHashTable::reshape(int numBucketsReshape) {
-	// unsigned int numBlocks;
+	cudaError_t err;
 	KeyValue *newTable;
-
-	// numBlocks = MAX(numBucketsReshape / BLOCK_SIZE, 1);
+	// unsigned int numBlocks = MAX(capacity / BLOCK_SIZE, 1);
 
 	// Malloc device memory and set it as unused
-	cudaMalloc((void **) &newTable, numBucketsReshape * sizeof(KeyValue));
-	DIE(newTable == NULL, "cudaMalloc");
+	err = cudaMalloc((void **) &newTable, numBucketsReshape * sizeof(KeyValue));
+	DIE(err != cudaSuccess, "cudaMalloc");
 
-	cudaMemset((void *) newTable, KEY_INVALID, numBucketsReshape * sizeof(KeyValue));
+	err = cudaMemset((void *) newTable, KEY_INVALID, numBucketsReshape * sizeof(KeyValue));
+	DIE(err != cudaSuccess, "cudaMemset");
 
 	// Run kernel
-	copy_and_rehash<<< 1, capacity >>>(newTable, hashtable, capacity, numBucketsReshape);
+	unsigned int numBlocks = capacity / BLOCK_SIZE + 1;
+	// if (capacity % BLOCK_SIZE != 0) numBlocks++;
+	copy_and_rehash<<< numBlocks, BLOCK_SIZE >>>(newTable, hashtable, capacity, numBucketsReshape);
 	cudaDeviceSynchronize();
 
 	// Update hashtable with new data
-	cudaFree(hashtable);
+	err = cudaFree(hashtable);
+	DIE(err != cudaSuccess, "cudaFree");
+
 	hashtable = newTable;
 	capacity = numBucketsReshape;
 }
@@ -139,38 +147,46 @@ void GpuHashTable::reshape(int numBucketsReshape) {
 /* INSERT BATCH
  */
 bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
+	cudaError_t err;
 	int *deviceKeys, *deviceValues;
 	int numBytes = numKeys * sizeof(int);
-
-	// Alloc device memory
-	cudaMalloc((void **) &deviceKeys, numBytes);
-	DIE(deviceKeys == NULL, "cudaMalloc");
-
-	cudaMalloc((void **) &deviceValues, numBytes);
-	DIE(deviceValues == NULL, "cudaMalloc");
+	// unsigned int numBlocks = MAX(numKeys / BLOCK_SIZE, 1);
 
 	// Check if we have enough space in the table for inserting this chunk
-	if ((float) ((float) numKeys + (float) occupancy) / capacity >= MAX_LOAD_FACTOR)
-		reshape((int) ((capacity + numKeys) / MIN_LOAD_FACTOR));
+	// Manage load factor
+	// if (occupancy + numKeys >= capacity)
+	// 	reshape((int) (capacity + numKeys) / MIN_LOAD_FACTOR);'
+	// cerr << "\t\tPAZEA: (occupancy + numKeys) / capacity = " << ((float) occupancy + (float) numKeys) / (float) capacity << "\n";
+	if (((float) occupancy + (float) numKeys) / (float) capacity >= MAX_LOAD_FACTOR)
+		reshape((int) ((occupancy + numKeys) / MIN_LOAD_FACTOR));
+
+	// Alloc device memory
+	err = cudaMalloc((void **) &deviceKeys, numBytes);
+	DIE(err != cudaSuccess, "cudaMalloc");
+
+	err = cudaMalloc((void **) &deviceValues, numBytes);
+	DIE(err != cudaSuccess, "cudaMalloc");
 
 	// Copy params from host to device
-	cudaMemcpy(deviceKeys, keys, numBytes, cudaMemcpyHostToDevice);
-	cudaMemcpy(deviceValues, values, numBytes, cudaMemcpyHostToDevice);
+	err = cudaMemcpy(deviceKeys, keys, numBytes, cudaMemcpyHostToDevice);
+	DIE(err != cudaSuccess, "cudaMemcpy");
+	err = cudaMemcpy(deviceValues, values, numBytes, cudaMemcpyHostToDevice);
+	DIE(err != cudaSuccess, "cudaMemcpy");
 
 	// Run kernel and wait for all threads to finish
-	insert_entries<<< 1, numKeys >>>(deviceKeys, deviceValues, numKeys, hashtable, capacity);
+	unsigned int numBlocks = numKeys / BLOCK_SIZE + 1;
+	// if (numKeys % BLOCK_SIZE != 0) numBlocks++;
+	insert_entries<<< numBlocks, BLOCK_SIZE >>>(deviceKeys, deviceValues, numKeys, hashtable, capacity);
 	cudaDeviceSynchronize();
 
 	// Update structure
 	occupancy += numKeys;
 
 	// Free memory
-	cudaFree(deviceKeys);
-	cudaFree(deviceValues);
-
-	// Manage load factor
-	// if (loadFactor() > MAX_LOAD_FACTOR)
-	// 	reshape((int) (capacity * 1.8f));
+	err = cudaFree(deviceKeys);
+	DIE(err != cudaSuccess, "cudaFree");
+	err = cudaFree(deviceValues);
+	DIE(err != cudaSuccess, "cudaFree");
 	
 	return true;
 }
@@ -178,28 +194,32 @@ bool GpuHashTable::insertBatch(int *keys, int* values, int numKeys) {
 /* GET BATCH
  */
 int* GpuHashTable::getBatch(int* keys, int numKeys) {
-	// unsigned int numBlocks;
-	int *deviceResult = NULL;
-	int *deviceKeys = NULL;
+	cudaError_t err;
+	int *deviceResult;
+	int *deviceKeys;
+	// unsigned int numBlocks = MAX(numKeys / BLOCK_SIZE, 1);
 	size_t numBytes = numKeys * sizeof(int);
 
-	// numBlocks = MAX(numKeys / BLOCK_SIZE, 1);
-
 	// Malloc device memory (shared memory for the result)
-	cudaMallocManaged((void **) &deviceResult, numBytes);
-	DIE(deviceResult == NULL, "cudaMalloc");
+	err = cudaMallocManaged((void **) &deviceResult, numBytes);
+	DIE(err != cudaSuccess, "cudaMallocManaged");
 
-	cudaMalloc((void **) &deviceKeys, numBytes);
-	DIE(deviceKeys == NULL, "cudaMalloc");
+	err = cudaMalloc((void **) &deviceKeys, numBytes);
+	DIE(err != cudaSuccess, "cudaMalloc");
 	
 	// Copy params to device memory
-	cudaMemcpy(deviceKeys, keys, numBytes, cudaMemcpyHostToDevice);
+	err = cudaMemcpy(deviceKeys, keys, numBytes, cudaMemcpyHostToDevice);
+	DIE(err != cudaSuccess, "cudaMemcpy");
 
 	// Run kernel and wait for all the threads to finish
-	get_values<<< 1, numKeys >>>(deviceKeys, numKeys, hashtable, capacity, deviceResult);
+	unsigned int numBlocks = numKeys / BLOCK_SIZE + 1;
+	// if (numKeys % BLOCK_SIZE != 0) numBlocks++;
+	get_values<<< numBlocks, BLOCK_SIZE >>>(deviceKeys, numKeys, hashtable, capacity, deviceResult);
 	cudaDeviceSynchronize();
 
-	cudaFree(deviceKeys);
+	err = cudaFree(deviceKeys);
+	DIE(err != cudaSuccess, "cudaFree");
+
 	return deviceResult;
 }
 
@@ -220,6 +240,5 @@ float GpuHashTable::loadFactor() {
 #define HASH_BATCH_GET(keys, numKeys) GpuHashTable.getBatch(keys, numKeys)
 
 #define HASH_LOAD_FACTOR GpuHashTable.loadFactor()
-
 
 #include "test_map.cpp"

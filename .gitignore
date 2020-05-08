@@ -1,3 +1,4 @@
 core.*
 output*
 gpu_hashtable
+.vscode

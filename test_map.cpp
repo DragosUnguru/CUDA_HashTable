@@ -87,8 +87,7 @@ int main(int argc, char **argv)
 		<< ", " << chunkSize / elapsedTime / 1000000
 		<< ", " << 100.f * HASH_LOAD_FACTOR << endl;
 	}
-	// DEBUG;
-	
+
 	// perform INSERT for update validation
 	int chunkSizeUpdate = min(64, numKeys);
 	for(int chunkStart = 0; chunkStart < chunkSizeUpdate; chunkStart++) {

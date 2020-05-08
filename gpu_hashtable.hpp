@@ -6,8 +6,11 @@
 using namespace std;
 
 #define	KEY_INVALID		0
-#define MIN_LOAD_FACTOR	0.6f
-#define MAX_LOAD_FACTOR	0.8f
+#define MIN_LOAD_FACTOR	0.8f
+#define MAX_LOAD_FACTOR	0.9f
+#define MIN(a, b) (((a) < (b)) ? (a) : (b))
+#define MAX(a, b) (((a) > (b)) ? (a) : (b))
+#define BLOCK_SIZE 1024
 
 #define DIE(assertion, call_description) \
 	do {	\
@@ -18,12 +21,8 @@ using namespace std;
 		exit(errno);	\
 	}	\
 } while (0)
-
-#define MIN(a, b) (((a) < (b)) ? (a) : (b))
-#define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define BLOCK_SIZE 1024
 	
-const size_t primeList[] =
+__device__ const size_t primeList[] =
 {
 	2llu, 3llu, 5llu, 7llu, 11llu, 13llu, 17llu, 23llu, 29llu, 37llu, 47llu,
 	59llu, 73llu, 97llu, 127llu, 151llu, 197llu, 251llu, 313llu, 397llu,
@@ -71,12 +70,13 @@ const size_t primeList[] =
 
 /* HASH INDEX
  */
- __device__ unsigned int hashFunc(unsigned int x, unsigned int capacity) {
-	x = ((x >> 16) ^ x) * 0x45d9f3b;
-	x = ((x >> 16) ^ x) * 0x45d9f3b;
-	x = (x >> 16) ^ x;
+ __device__ int hashFunc(int data, int limit) {
+	return ((long)abs(data) * primeList[70]) % primeList[93] % limit;
+	// x = ((x >> 16) ^ x) * 0x45d9f3b;
+	// x = ((x >> 16) ^ x) * 0x45d9f3b;
+	// x = (x >> 16) ^ x;
 
-	return x % capacity;
+	// return x % capacity;
  }
 
 struct KeyValue {
