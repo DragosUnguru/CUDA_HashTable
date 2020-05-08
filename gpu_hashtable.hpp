@@ -7,10 +7,10 @@ using namespace std;
 
 #define	KEY_INVALID		0
 #define MIN_LOAD_FACTOR	0.8f
-#define MAX_LOAD_FACTOR	0.9f
+#define MAX_LOAD_FACTOR	0.82f
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-#define BLOCK_SIZE 1024
+#define BLOCK_SIZE 512
 
 #define DIE(assertion, call_description) \
 	do {	\
@@ -71,12 +71,12 @@ __device__ const size_t primeList[] =
 /* HASH INDEX
  */
  __device__ int hashFunc(int data, int limit) {
-	return ((long)abs(data) * primeList[70]) % primeList[93] % limit;
-	// x = ((x >> 16) ^ x) * 0x45d9f3b;
-	// x = ((x >> 16) ^ x) * 0x45d9f3b;
-	// x = (x >> 16) ^ x;
+	// return ((long)abs(data) * primeList[70]) % primeList[93] % limit;
+	data = ((data >> 16) ^ data) * 0x45d9f3b;
+	data = ((data >> 16) ^ data) * 0x45d9f3b;
+	data = (data >> 16) ^ data;
 
-	// return x % capacity;
+	return data % limit;
  }
 
 struct KeyValue {
