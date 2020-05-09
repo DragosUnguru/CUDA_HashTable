@@ -1,0 +1,59 @@
+
+                    # Unguru Dragos-Gabriel,
+                            # 336CC
+
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!
+    !!! IMPORTANT NOTICE: !!!
+    !!!!!!!!!!!!!!!!!!!!!!!!!
+
+        TESTED ON: 
+            - HP-SL.Q
+            - IBM-DP.Q
+            - SPRMCRO-GPU.Q
+            - LOCALLY
+
+        !!! IF THIS WILL BE TESTED ON THE "IBM-DP.Q" QUEUE,
+    MAKE SURE TO LOAD CUDA-8.0 AND MAKE SURE THE "-DIBM"
+    COMPILATION FLAG IS PRESENT IN THE MAKEFILE!
+
+        !!! IF THIS IS TESTED ON A NEWER GPU (TESLA P100 AND ABOVE: "HP-SL.Q"
+    / "SPRMCRO-GPU.Q") WHICH SUPPORTS SHARED MEMORY BETWEEN THE CPU AND GPU,
+    THERE IS NO NEED FOR A SPECIFIC LIBRARY TO LOAD, NOR A COMPILATION FLAG
+
+            # BRIEF INTRODUCTION
+
+        The main purpose of this project is the implementation of a
+    distributed hashtable using the computing power of the GPU, making
+    use of the CUDA programming environment.
+
+            # DETAILS AND GOAL
+
+        The goal for this hashtable is to find a somewhat balance between
+    space efficiency and executing time (leaning more towards space efficiency).
+
+        This is obtained by keeping a high loading factor of our hashtable,
+    which, of course, will bring more and more complexity in inserting and querying
+    the structure.
+        But, to indemnify some of the cost of time efficiency paid for space,
+    we win some time by (very counterintuitively) implementing the collision
+    technique of LINEAR PROBING.
+
+            # APPROACH
+
+        After a thorough research [0], we can most certainly see that the linear
+    probing technique, by also being the least difficult to implement, it
+    also provides way better results compared to the any Cuckoo based methods in practice.
+
+        By increasing the load factor, the time complexity of querying and 
+    inserting into our hashtable increases lineary with our chosen method,
+    compared to the Cuckoo-based methods that can cause a dramatic avalanche
+    of rehashing, especially when we want to keep the loading factor as high as
+    possible.
+
+        Furthermore, we can see that the majority of performance gains by chosing
+    linear probing instead of Cuckoo is the cache-friendliness of linearly accesing
+    the memory space when searching or inserting [1].
+
+    [0]: https://www.quora.com/Why-is-cuckoo-hashing-not-a-popular-technique-even-though-it-has-worst-case-lookup-guarantees-Is-it-because-general-hashing-used-in-popular-implementation-of-HashMap-and-HashSet-performs-well-in-practice-but-still-no-O-1-guarantees-on-worst-case
+    [1]: http://jakubiuk.net/stuff/hash_tables_cache_performance.pdf

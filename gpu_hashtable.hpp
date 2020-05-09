@@ -7,7 +7,7 @@ using namespace std;
 
 #define	KEY_INVALID		0
 #define MIN_LOAD_FACTOR	0.8f
-#define MAX_LOAD_FACTOR	0.82f
+#define MAX_LOAD_FACTOR	0.95f
 #define MIN(a, b) (((a) < (b)) ? (a) : (b))
 #define MAX(a, b) (((a) > (b)) ? (a) : (b))
 #define BLOCK_SIZE 512

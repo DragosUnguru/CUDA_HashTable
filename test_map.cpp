@@ -124,7 +124,7 @@ int main(int argc, char **argv)
 		
 		if(mistmatches > 0) {
 			cout << "ERR, mistmatches: " << mistmatches << " / " << numKeys << endl;
-			// exit(1);
+			exit(1);
 		}
 	}
 
